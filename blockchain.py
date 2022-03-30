@@ -4,6 +4,8 @@ import logging
 import sys
 import time
 
+from ecdsa import VerifyingKey, NIST256p
+
 import utils
 
 # hash値の先頭の0数
@@ -44,14 +46,48 @@ class BlockChain(object):
         return hashlib.sha256(sorted_block.encode()).hexdigest()
 
     def add_transaction(self, sender_blockchain_address,
-                        recipient_blockchain_address, value):
+                        recipient_blockchain_address, value,
+                        sender_public_key=None, signature=None):
         transaction = utils.sorted_dict_by_key({
             'sender_blockchain_address': sender_blockchain_address,
             'recipient_blockchain_address': recipient_blockchain_address,
             'value': float(value)
         })
-        self.transaction_pool.append(transaction)
-        return True
+        if sender_blockchain_address == MINNING_SENDER:
+            self.transaction_pool.append(transaction)
+            return True
+
+        if self.verify_transaction_signature(sender_public_key, signature, transaction):
+            # if self.calculate_total_amount(sender_blockchain_address) < float(value):
+            #     logger.error({'action': 'add_transaction', 'status': 'no_value_error'})
+            #     return False
+
+            self.transaction_pool.append(transaction)
+            return True
+
+        return False
+
+    def verify_transaction_signature(self, sender_public_key, signature, transaction):
+        """
+        公開鍵、signature、transactionを使って、送金が正しいかを確認する
+        """
+        sha256 = hashlib.sha256()
+        sha256.update(str(transaction).encode('utf-8'))
+        message = sha256.digest()
+        signature_bytes = bytes().fromhex(signature)
+        verifying_key = VerifyingKey.from_string(
+            bytes().fromhex(sender_public_key), curve=NIST256p)
+        verified_key = verifying_key.verify(signature_bytes, message)
+        return verified_key
+
+    def proof_of_work(self):
+        """ previous_hash,transaction,nonceでハッシュを生成し先頭に0が難易度分続くものが生まれればnonceを返す """
+        transactions = self.transaction_pool.copy()
+        previous_hash = self.hash(self.chain[-1])
+        nonce = 0
+        while self.valid_proof(transactions, previous_hash, nonce) is False:
+            nonce += 1
+        return nonce
 
     def valid_proof(self, transactions, previous_hash, nonce,
                     difficulty=MINNING_DIFFICULTY):
@@ -63,22 +99,13 @@ class BlockChain(object):
         })
         return self.hash(block)[:difficulty] == '0' * difficulty
 
-    def proof_of_work(self):
-        """ previous_hash,transaction,nonceでハッシュを生成し先頭に0が難易度分続くものが生まれればnonceを返す """
-        transactions = self.transaction_pool.copy()
-        previous_hash = self.hash(self.chain[-1])
-        nonce = 0
-        while self.valid_proof(transactions, previous_hash, nonce) is False:
-            nonce += 1
-        return nonce
-
     def minning(self):
+        # nonceを探す
+        nonce = self.proof_of_work()
         self.add_transaction(
             sender_blockchain_address=MINNING_SENDER,
             recipient_blockchain_address=self.blockchain_address,
             value=MINNING_REWARD)
-        # nonceを探す
-        nonce = self.proof_of_work()
         # ブロックを作る
         # previous_hash: 前のブロックのハッシュ値
         previous_hash = self.hash(self.chain[-1])
@@ -95,19 +122,3 @@ class BlockChain(object):
                 if blockchain_address == transaction['sender_blockchain_address']:
                     total_amount -= float(transaction['value'])
         return total_amount
-
-
-if __name__ == '__main__':
-    my_blockchain_address = "my_blockchain_address"
-    block_chain = BlockChain(my_blockchain_address)
-
-    block_chain.add_transaction('Tom', 'Kota', 100)
-    block_chain.minning()
-
-    block_chain.add_transaction('Kota', 'John', 10)
-    block_chain.add_transaction('Kim', 'Mic', 10)
-    block_chain.minning()
-
-    utils.pprint(block_chain.chain)
-    print('my: ', block_chain.calculate_total_amount(my_blockchain_address))
-    print('Kota: ', block_chain.calculate_total_amount('Kota'))

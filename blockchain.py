@@ -183,6 +183,23 @@ class BlockChain(object):
                 loop = threading.Timer(MINING_TIMER_SEC, self.start_mining)
                 loop.start()
 
+    def valid_chain(self, chain):
+        """ ブロックチェーンが正しいかを(前のブロックのハッシュとnonceを用い)確認する """
+        pre_block = chain[0]
+        current_index = 1
+        while current_index < len(chain):
+            block = chain[current_index]
+            # ブロックのハッシュが正しいかを確認
+            if block['previous_hash'] != self.hash(pre_block):
+                return False
+            # ブロックのnonceが正しいかを確認
+            if not self.valid_proof(block['transactions'], block['previous_hash'],
+                                    block['nonce'], MINING_DIFFICULTY):
+                return False
+            pre_block = block
+            current_index += 1
+        return True
+
     def calculate_total_amount(self, blockchain_address):
         total_amount = 0.0
         for block in self.chain:

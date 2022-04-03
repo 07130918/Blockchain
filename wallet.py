@@ -113,7 +113,7 @@ if __name__ == '__main__':
         t.generate_signature()
     )
     print(is_added)
-    blockchain.minning()
+    blockchain.mining()
     utils.pprint(blockchain.chain)
 
     print('A', blockchain.calculate_total_amount(wallet_A.blockchain_address))

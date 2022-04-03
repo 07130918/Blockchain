@@ -69,19 +69,19 @@ def transactions():
 
         is_updated = block_chain.add_transaction(
             request_json['sender_blockchain_address'],  # type: ignore
-            request_json['recipient_blockchain_address'],  # type: ignore
-            request_json['value'],  # type: ignore
-            request_json['sender_public_key'],  # type: ignore
-            request_json['signature'],  # type: ignore
+            request_json['recipient_blockchain_address'],
+            request_json['value'],
+            request_json['sender_public_key'],
+            request_json['signature'],
         )
         if not is_updated:
-            return jsonify({'message': 'Error updating transaction'}), 400
+            return jsonify({'message': 'fail'}), 400
 
-        return jsonify({'message': 'Transaction updated'}), 200
+        return jsonify({'message': 'success'}), 200
 
     if request.method == 'DELETE':
         block_chain.transaction_pool = []
-        return jsonify({'message': 'success: transaction pool was cleaned'}), 200
+        return jsonify({'message': 'success'}), 200
 
 
 @app.route('/mine', methods=['GET'])
@@ -89,15 +89,15 @@ def mine():
     block_chain = get_blockchain()
     is_mined = block_chain.mining()
     if is_mined:
-        return jsonify({'message': 'mining request success'}), 200
+        return jsonify({'message': 'Success'}), 200
 
-    return jsonify({'message': 'mining request failed'}), 400
+    return jsonify({'message': 'fail'}), 400
 
 
 @app.route('/mine/start', methods=['GET'])
 def start_mine():
     get_blockchain().start_mining()
-    return jsonify({'message': 'mining start request success'}), 200
+    return jsonify({'message': 'Success'}), 200
 
 
 def get_blockchain():
@@ -120,7 +120,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('-p', '--port',
-                        default=5001, type=int, help='port to listen on')
+                        default=5002, type=int, help='port to listen on')
     args = parser.parse_args()
     port = args.port
 

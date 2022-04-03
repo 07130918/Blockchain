@@ -77,7 +77,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-p', '--port',
                         default=8080, type=int, help='port to listen on')
-    parser.add_argument('-g', '--gw', default='http://127.0.0.1:5010',
+    parser.add_argument('-g', '--gw', default='http://127.0.0.1:5001',
                         type=str, help='blockchain gateway')
     args = parser.parse_args()
     port = args.port

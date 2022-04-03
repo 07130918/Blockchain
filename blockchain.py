@@ -7,6 +7,7 @@ import time
 import threading
 
 from ecdsa import NIST256p, VerifyingKey
+import requests
 
 import utils
 
@@ -15,6 +16,10 @@ MINING_DIFFICULTY = 4
 MINING_SENDER = 'THE BLOCKCHAIN NETWORK'
 MINING_REWARD = 1.0
 MINING_TIMER_SEC = 20
+
+BLOCKCHAIN_PORT_RANGE = (5001, 5004)
+NEIGHBOURS_IP_RANGE_NUM = (0, 1)
+BLOCKCHAIN_NEIGHBOURS_SYNC_TIME_SEC = 20
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -25,11 +30,32 @@ class BlockChain(object):
     def __init__(self, blockchain_address=None, port=None):
         self.transaction_pool = []
         self.chain = []
+
+        self.neighbours = []
         # はじめは空のブロックを作っておく
         self.create_block(0, self.hash({}))
         self.blockchain_address = blockchain_address
         self.port = port
         self.mining_semaphore = threading.Semaphore(1)
+        self.sync_neighbours_semaphore = threading.Semaphore(1)
+
+    def set_neighbours(self):
+        self.neighbours = utils.find_neighbours(
+            utils.get_host(),
+            self.port,
+            NEIGHBOURS_IP_RANGE_NUM[0], NEIGHBOURS_IP_RANGE_NUM[1],
+            BLOCKCHAIN_PORT_RANGE[0], BLOCKCHAIN_PORT_RANGE[1]
+        )
+        logger.info({'action': 'set_neighbours', 'neighbours': self.neighbours})
+
+    def sync_neighbours(self):
+        is_acquire = self.sync_neighbours_semaphore.acquire(blocking=False)
+        if is_acquire:
+            with contextlib.ExitStack() as stack:
+                stack.callback(self.sync_neighbours_semaphore.release)
+                self.set_neighbours()
+                loop = threading.Timer(BLOCKCHAIN_NEIGHBOURS_SYNC_TIME_SEC, self.sync_neighbours)
+                loop.start()
 
     def create_block(self, nonce, previous_hash):
         block = utils.sorted_dict_by_key({
@@ -40,6 +66,10 @@ class BlockChain(object):
         })
         self.chain.append(block)
         self.transaction_pool = []
+        # 他のnodeのプールも空にする
+        for node in self.neighbours:
+            requests.delete(f'http://{node}/transactions')
+
         return block
 
     def hash(self, block):
@@ -56,6 +86,20 @@ class BlockChain(object):
         is_transacted = self.add_transaction(sender_blockchain_address,
                                              recipient_blockchain_address, value,
                                              sender_public_key, signature)
+
+        # 他のノードにトランザクションを同期させる
+        if is_transacted:
+            for node in self.neighbours:
+                requests.put(
+                    f'http://{node}/transactions',
+                    json={
+                        'sender_blockchain_address': sender_blockchain_address,
+                        'recipient_blockchain_address': recipient_blockchain_address,
+                        'value': value,
+                        'sender_public_key': sender_public_key,
+                        'signature': signature,
+                    }
+                )
         return is_transacted
 
     def add_transaction(self, sender_blockchain_address,
@@ -126,7 +170,7 @@ class BlockChain(object):
         # previous_hash: 前のブロックのハッシュ値
         previous_hash = self.hash(self.chain[-1])
         self.create_block(nonce, previous_hash)
-        logger.info({'action': 'mining', 'status': 'success'})
+        logger.info({'action': 'mining', 'status': 'mining success'})
         return True
 
     def start_mining(self):

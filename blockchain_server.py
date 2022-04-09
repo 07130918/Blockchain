@@ -13,7 +13,7 @@ cache = {}
 def get_chain():
     block_chain = get_blockchain()
     response = {
-        'chain': block_chain.chain,
+        'chain': block_chain.chain
     }
     return jsonify(response), 200
 
@@ -100,6 +100,21 @@ def start_mine():
     return jsonify({'message': 'mining start request success'}), 200
 
 
+@app.route('/consensus', methods=['PUT'])
+def consensus():
+    block_chain = get_blockchain()
+    replaced = block_chain.resolve_conflicts()
+    return jsonify({'replaced': replaced}), 200
+
+
+@app.route('/amount', methods=['GET'])
+def get_total_amount():
+    block_chain_address = request.args['blockchain_address']  # type: ignore
+    return jsonify({
+        'amount': get_blockchain().calculate_total_amount(block_chain_address)
+    }), 200
+
+
 def get_blockchain():
     cached_blokchain = cache.get('blockchain')
     if not cached_blokchain:
@@ -126,6 +141,6 @@ if __name__ == '__main__':
 
     app.config['port'] = port
 
-    get_blockchain().sync_neighbours()
+    get_blockchain().run()
 
     app.run(host='0.0.0.0', port=port, threaded=True, debug=True)

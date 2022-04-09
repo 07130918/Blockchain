@@ -38,8 +38,10 @@ def create_transaction():
         return 'Missing values', 400
 
     sender_private_key = request_json['sender_private_key']  # type: ignore
-    sender_blockchain_address = request_json['sender_blockchain_address']  # type: ignore
-    recipient_blockchain_address = request_json['recipient_blockchain_address']  # type: ignore
+    # type: ignore
+    sender_blockchain_address = request_json['sender_blockchain_address']
+    # type: ignore
+    recipient_blockchain_address = request_json['recipient_blockchain_address']
     sender_public_key = request_json['sender_public_key']  # type: ignore
     value = float(request_json['value'])  # type: ignore
 
@@ -79,7 +81,8 @@ def calculate_amount():
     if not all(k in request.args for k in required):
         return 'Missing values', 400
 
-    my_blockchain_address = request.args.get('blockchain_address')  # type: ignore
+    my_blockchain_address = request.args.get(
+        'blockchain_address')  # type: ignore
     response = requests.get(
         urllib.parse.urljoin(app.config['gw'], 'amount'),
         {'blockchain_address': my_blockchain_address},
@@ -97,7 +100,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('-p', '--port',
-                        default=8080, type=int, help='port to listen on')
+                        default=8081, type=int, help='port to listen on')
     parser.add_argument('-g', '--gw', default='http://127.0.0.1:5001',
                         type=str, help='blockchain gateway')
     args = parser.parse_args()

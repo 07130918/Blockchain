@@ -39,6 +39,42 @@ class BlockChain(object):
         self.mining_semaphore = threading.Semaphore(1)
         self.sync_neighbours_semaphore = threading.Semaphore(1)
 
+    def create_block(self, nonce, previous_hash):
+        """
+        新しくブロックを作り、チェーンに繋げる
+        ブロックは,timestamp, transactions, nonce, previous_hash(前のブロックのハッシュ値)の4要素から成る
+        """
+        block = utils.sorted_dict_by_key({
+            'timestamp': time.time(),
+            'transactions': self.transaction_pool,
+            'nonce': nonce,
+            'previous_hash': previous_hash
+        })
+        self.chain.append(block)
+        # トランザクションはブロックに詰め終わったため空にする
+        self.transaction_pool = []
+        # 他のnodeのプールも空にする
+        for node in self.neighbours:
+            requests.delete(f'http://{node}/transactions')
+
+        return block
+
+    def run(self):
+        self.sync_neighbours()
+        self.resolve_conflicts()
+        # self.start_mining()
+
+    def sync_neighbours(self):
+        is_acquire = self.sync_neighbours_semaphore.acquire(blocking=False)
+        if is_acquire:
+            with contextlib.ExitStack() as stack:
+                stack.callback(self.sync_neighbours_semaphore.release)
+                self.set_neighbours()
+                loop = threading.Timer(
+                    BLOCKCHAIN_NEIGHBOURS_SYNC_TIME_SEC, self.sync_neighbours
+                )
+                loop.start()
+
     def set_neighbours(self):
         self.neighbours = utils.find_neighbours(
             utils.get_host(),
@@ -48,29 +84,26 @@ class BlockChain(object):
         )
         logger.info({'action': 'set_neighbours', 'neighbours': self.neighbours})
 
-    def sync_neighbours(self):
-        is_acquire = self.sync_neighbours_semaphore.acquire(blocking=False)
-        if is_acquire:
-            with contextlib.ExitStack() as stack:
-                stack.callback(self.sync_neighbours_semaphore.release)
-                self.set_neighbours()
-                loop = threading.Timer(BLOCKCHAIN_NEIGHBOURS_SYNC_TIME_SEC, self.sync_neighbours)
-                loop.start()
-
-    def create_block(self, nonce, previous_hash):
-        block = utils.sorted_dict_by_key({
-            'timestamp': time.time(),
-            'transactions': self.transaction_pool,
-            'nonce': nonce,
-            'previous_hash': previous_hash
-        })
-        self.chain.append(block)
-        self.transaction_pool = []
-        # 他のnodeのプールも空にする
+    def resolve_conflicts(self):
+        """ 最も長いチェーンを採用するアルゴリズム """
+        longest_chain = None
+        max_length = len(self.chain)
         for node in self.neighbours:
-            requests.delete(f'http://{node}/transactions')
+            response = requests.get(f'http://{node}/chain')
+            if response.status_code == 200:
+                chain = response.json()['chain']
+                chain_length = len(chain)
+                if chain_length > max_length and self.valid_chain(chain):
+                    max_length = chain_length
+                    longest_chain = chain
 
-        return block
+        if longest_chain:
+            self.chain = longest_chain
+            logger.info({'action': 'resolve_conflict', 'status': 'chain was replaced'})
+            return True
+
+        logger.info({'action': 'resolve_conflict', 'status': 'chain was not replaced'})
+        return False
 
     def hash(self, block):
         """
@@ -127,6 +160,7 @@ class BlockChain(object):
     def verify_transaction_signature(self, sender_public_key, signature, transaction):
         """
         公開鍵、signature、transactionを使って、送金リクエストが正しいかを確認する
+        bool値を返す
         """
         sha256 = hashlib.sha256()
         sha256.update(str(transaction).encode('utf-8'))
@@ -137,8 +171,43 @@ class BlockChain(object):
         verified_key = verifying_key.verify(signature_bytes, message)
         return verified_key
 
+    def mining(self):
+        """ マイニング(ナンスを見つけ、新たなブロックを作る)を行う """
+        if not self.transaction_pool:
+            return False
+
+        self.add_transaction(
+            sender_blockchain_address=MINING_SENDER,
+            recipient_blockchain_address=self.blockchain_address,
+            value=MINING_REWARD)
+        # nonceを探す
+        nonce = self.proof_of_work()
+        # ブロックを作る(previous_hash: 前のブロックのハッシュ値)
+        previous_hash = self.hash(self.chain[-1])
+        self.create_block(nonce, previous_hash)
+        logger.info({'action': 'mining', 'status': 'mining success'})
+
+        # 他のノードのブロックチェーンを更新する
+        for node in self.neighbours:
+            requests.put(f'http://{node}/consensus')
+
+        return True
+
+    def start_mining(self):
+        is_acquire = self.mining_semaphore.acquire(blocking=False)
+        # miningが実行中でなければ実行
+        if is_acquire:
+            with contextlib.ExitStack() as stack:
+                stack.callback(self.mining_semaphore.release)
+                self.mining()
+                loop = threading.Timer(MINING_TIMER_SEC, self.start_mining)
+                loop.start()
+
     def proof_of_work(self):
-        """ previous_hash,transaction,nonceでハッシュを生成し先頭に0が難易度分続くものが生まれればnonceを返す """
+        """
+        previous_hash,transaction,nonceでハッシュを生成し先頭に0が難易度分続くものが生まれればnonceを返す
+        bitcoinは,proof of workのアルゴリズムを採用している
+        """
         transactions = self.transaction_pool.copy()
         previous_hash = self.hash(self.chain[-1])
         nonce = 0
@@ -155,33 +224,6 @@ class BlockChain(object):
             'previous_hash': previous_hash
         })
         return self.hash(block)[:difficulty] == '0' * difficulty
-
-    def mining(self):
-        if not self.transaction_pool:
-            return False
-
-        # nonceを探す
-        nonce = self.proof_of_work()
-        self.add_transaction(
-            sender_blockchain_address=MINING_SENDER,
-            recipient_blockchain_address=self.blockchain_address,
-            value=MINING_REWARD)
-        # ブロックを作る
-        # previous_hash: 前のブロックのハッシュ値
-        previous_hash = self.hash(self.chain[-1])
-        self.create_block(nonce, previous_hash)
-        logger.info({'action': 'mining', 'status': 'mining success'})
-        return True
-
-    def start_mining(self):
-        is_acquire = self.mining_semaphore.acquire(blocking=False)
-        # miningが実行中でなければ実行
-        if is_acquire:
-            with contextlib.ExitStack() as stack:
-                stack.callback(self.mining_semaphore.release)
-                self.mining()
-                loop = threading.Timer(MINING_TIMER_SEC, self.start_mining)
-                loop.start()
 
     def valid_chain(self, chain):
         """ ブロックチェーンが正しいかを(前のブロックのハッシュとnonceを用い)確認する """

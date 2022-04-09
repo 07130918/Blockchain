@@ -27,7 +27,7 @@ def pprint(chains):
 
 
 def find_neighbours(my_host, my_port, start_ip_range, end_ip_range, start_port, end_port):
-    """他のブロックチェーンノードを見つける(5001,5002,5003)"""
+    """ 他のブロックチェーンノードを見つける(5001,5002,5003) """
     address = f'{my_host}:{my_port}'
     m = RE_IP.search(my_host)
     if not m:
@@ -76,4 +76,4 @@ def get_host():
 
 if __name__ == '__main__':
     # print(is_found_host('127.0.0.1', 5010))
-    print(find_neighbours(get_host(), 5009, 0, 3, 5001, 5004))
+    print(find_neighbours(get_host(), 5001, 0, 3, 5002, 5004))

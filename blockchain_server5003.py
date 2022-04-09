@@ -13,7 +13,7 @@ cache = {}
 def get_chain():
     block_chain = get_blockchain()
     response = {
-        'chain': block_chain.chain,
+        'chain': block_chain.chain
     }
     return jsonify(response), 200
 
@@ -69,19 +69,19 @@ def transactions():
 
         is_updated = block_chain.add_transaction(
             request_json['sender_blockchain_address'],  # type: ignore
-            request_json['recipient_blockchain_address'],
-            request_json['value'],
-            request_json['sender_public_key'],
-            request_json['signature'],
+            request_json['recipient_blockchain_address'],  # type: ignore
+            request_json['value'],  # type: ignore
+            request_json['sender_public_key'],  # type: ignore
+            request_json['signature'],  # type: ignore
         )
         if not is_updated:
-            return jsonify({'message': 'fail'}), 400
+            return jsonify({'message': 'Error updating transaction'}), 400
 
-        return jsonify({'message': 'success'}), 200
+        return jsonify({'message': 'Transaction updated'}), 200
 
     if request.method == 'DELETE':
         block_chain.transaction_pool = []
-        return jsonify({'message': 'success'}), 200
+        return jsonify({'message': 'success: transaction pool was cleaned'}), 200
 
 
 @app.route('/mine', methods=['GET'])
@@ -89,15 +89,30 @@ def mine():
     block_chain = get_blockchain()
     is_mined = block_chain.mining()
     if is_mined:
-        return jsonify({'message': 'Success'}), 200
+        return jsonify({'message': 'mining request success'}), 200
 
-    return jsonify({'message': 'fail'}), 400
+    return jsonify({'message': 'mining request failed'}), 400
 
 
 @app.route('/mine/start', methods=['GET'])
 def start_mine():
     get_blockchain().start_mining()
-    return jsonify({'message': 'Success'}), 200
+    return jsonify({'message': 'mining start request success'}), 200
+
+
+@app.route('/consensus', methods=['PUT'])
+def consensus():
+    block_chain = get_blockchain()
+    replaced = block_chain.resolve_conflicts()
+    return jsonify({'replaced': replaced}), 200
+
+
+@app.route('/amount', methods=['GET'])
+def get_total_amount():
+    block_chain_address = request.args['blockchain_address']  # type: ignore
+    return jsonify({
+        'amount': get_blockchain().calculate_total_amount(block_chain_address)
+    }), 200
 
 
 def get_blockchain():
@@ -126,6 +141,6 @@ if __name__ == '__main__':
 
     app.config['port'] = port
 
-    get_blockchain().sync_neighbours()
+    get_blockchain().run()
 
     app.run(host='0.0.0.0', port=port, threaded=True, debug=True)

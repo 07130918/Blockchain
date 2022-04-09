@@ -7,6 +7,7 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script>
         $(function() {
+            // walletのデータを取得
             $.ajax({
                 url: '/wallet',
                 type: 'POST',
@@ -36,7 +37,7 @@
                     'value': $('#send_amount').val(),
                 }
 
-                // ARIに送金リクエストを投げる
+                // APIに送金リクエストを投げる
                 $.ajax({
                     url: '/transaction',
                     type: 'POST',
@@ -44,13 +45,35 @@
                     dataType: 'json',
                     data: JSON.stringify(transaction_data),
                     success: function(response) {
-                        alert('Send success');
+                        console.log('Send success');
                     },
                     error: function(response) {
                         alert('Send failed', error);
                     },
                 })
             })
+
+            function reload_amount() {
+                let data = {'blockchain_address': $('#blockchain_address').val()};
+                $.ajax({
+                    url: '/wallet/amount',
+                    type: 'GET',
+                    data: data,
+                    success: function(response) {
+                        let amount = response['amount'];
+                        $('#wallet_amount').text(amount);
+                        console.log(response);
+                    },
+                    error: function(response) {
+                        console.log(response);
+                    }
+                })
+            }
+
+            // $('#reload_wallet').click(function() {
+            //     reload_amount();
+            // })
+            setInterval(reload_amount, 3000);
         });
     </script>
 </head>
@@ -59,7 +82,7 @@
     <div>
         <h1>Wallet</h1>
         <div id="wallet_amount">0</div>
-        <button id="reload_wallet">Reload Wallet</button>
+        <!-- <button id="reload_wallet">Reload Wallet</button> -->
 
         <p>Public Key</p>
         <textarea id="public_key" rows="2" cols="100"></textarea>

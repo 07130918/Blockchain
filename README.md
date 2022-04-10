@@ -1,23 +1,29 @@
 # Blockchain
 
-### blockchain.py
+## blockchain.py
 ブロックチェーンの概念に関するもの
 マイニング等もここに記載
-マイニング報酬は一応'THE BLOCKCHAIN NETWORK'から送金される
+マイニング報酬は一応'THE BLOCKCHAIN NETWORK'から送金される. 
+  
 トランザクションの証明
 
-### wallet.py
+## wallet.py
 仮想通貨ウォレット
+  
 bitcoin node側に投げるトランザクションの署名
 
-### blockchain_server.py
+## blockchain_server.py
 python blockchain_server.pyで
 block chain serverを起動できる。
-localhost:5010/chain
+localhost:5001,5002,5003
+### API
+/chain
+
     GET:
+    
         ブロックチェーンを見れる。
 localhost:5010/transactions
-    GET:
+    GET:  
         トランザクションプールを見れる。
     POST:
         トランザクションの作成。

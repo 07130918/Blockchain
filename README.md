@@ -68,7 +68,7 @@ localhost:8080, 8081
 /
     GET:
         トップページをレンダリング
-        ページを開いた瞬間に/wallet にPOST
+        ページを開いた瞬間に`/wallet`にPOST
 
 /wallet
     POST:

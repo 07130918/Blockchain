@@ -68,11 +68,11 @@ localhost:8080, 8081
 /
     GET:
         トップページをレンダリング
-        ページを開いた瞬間に`/wallet`にPOST
+        ページを開いた瞬間に`/wallet`に`POST`
 
 /wallet
     POST:
-        ウォレットの作成
+        ウォレットを作成。
 
 /transaction
     POST:
